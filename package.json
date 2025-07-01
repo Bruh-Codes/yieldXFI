@@ -1,0 +1,14 @@
+{
+  "name": "xfiBridge",
+  "packageManager": "yarn@4.6.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "contracts/*",
+    "programs/*",
+    "shared"
+  ],
+  "devDependencies": {
+    "hardhat": "^2.25.0"
+  }
+}

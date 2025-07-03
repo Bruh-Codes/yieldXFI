@@ -1,43 +1,61 @@
-const {
-  loadFixture,
+import {
   time,
-} = require("@nomicfoundation/hardhat-toolbox/network-helpers");
-const { expect } = require("chai");
-const { ethers } = require("hardhat");
+  loadFixture,
+} from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { expect } from "chai";
+import hre from "hardhat";
 
 describe("YieldPool", function () {
   async function deployYieldPoolFixture() {
-    const [owner, otherAccount] = await ethers.getSigners();
+    const [owner, otherAccount] = await hre.ethers.getSigners();
 
-    const ERC20Mock = await ethers.getContractFactory("ERC20Mock");
+    const ERC20Mock = await hre.ethers.getContractFactory("ERC20Mock");
     const asset = await ERC20Mock.deploy("Mock Token", "MT");
     await asset.waitForDeployment();
+    let borrowProtocol: any;
 
     const yieldRate = 1000; // 10%
     const minDuration = 30 * 24 * 3600; // 30 days
     const maxDuration = 365 * 24 * 3600; // 365 days
 
-    const YieldPool = await ethers.getContractFactory("YieldPool");
+    const YieldPool = await hre.ethers.getContractFactory("YieldPool");
+    const BorrowProtocol = await hre.ethers.getContractFactory("BorrowProtocol");
+
+    const borrowProtocolInstance = await BorrowProtocol.deploy(
+      hre.ethers.ZeroAddress, // Placeholder for YieldPool address
+      owner.address
+    );
+
     const yieldPool = await YieldPool.deploy(
       yieldRate,
       minDuration,
-      maxDuration
+      maxDuration,
+      borrowProtocolInstance.getAddress()
     );
+
+    // Set the correct yield pool address in BorrowProtocol
+    await borrowProtocolInstance.setYieldPool(yieldPool.getAddress());
+
+    // Assign to the outer scope variable
+    borrowProtocol = borrowProtocolInstance;
+
     await yieldPool.waitForDeployment();
 
-    await asset.mint(owner.address, ethers.parseEther("10000"));
-    await asset.mint(otherAccount.address, ethers.parseEther("10000"));
+    await asset.mint(owner.address, hre.ethers.parseEther("10000"));
+    await asset.mint(otherAccount.address, hre.ethers.parseEther("10000"));
 
     await asset
       .connect(owner)
-      .approve(yieldPool.target, ethers.parseEther("10000"));
+      .approve(yieldPool.target, hre.ethers.parseEther("10000"));
     await asset
       .connect(otherAccount)
-      .approve(yieldPool.target, ethers.parseEther("10000"));
+      .approve(yieldPool.target, hre.ethers.parseEther("10000"));
 
     // Allow the mock token and add some initial reserves
     await yieldPool.connect(owner).setTokenAllowed(asset.target, true);
-    await yieldPool.connect(owner).addYieldReserves(asset.target, ethers.parseEther("100"));
+    await yieldPool
+      .connect(owner)
+      .addYieldReserves(asset.target, hre.ethers.parseEther("100"));
 
     return {
       yieldPool,
@@ -70,10 +88,12 @@ describe("YieldPool", function () {
       const { yieldPool, asset, owner, minDuration } = await loadFixture(
         deployYieldPoolFixture
       );
-      const depositAmount = ethers.parseEther("100");
+      const depositAmount = hre.ethers.parseEther("100");
 
       await expect(
-        yieldPool.connect(owner).deposit(asset.target, depositAmount, minDuration)
+        yieldPool
+          .connect(owner)
+          .deposit(asset.target, depositAmount, minDuration)
       )
         .to.emit(yieldPool, "Deposited")
         .withArgs(owner.address, asset.target, depositAmount, minDuration);
@@ -96,7 +116,7 @@ describe("YieldPool", function () {
       const { yieldPool, asset, owner } = await loadFixture(
         deployYieldPoolFixture
       );
-      const depositAmount = ethers.parseEther("100");
+      const depositAmount = hre.ethers.parseEther("100");
       await expect(
         yieldPool.connect(owner).deposit(asset.target, depositAmount, 100)
       ).to.be.revertedWith("Invalid duration");
@@ -108,7 +128,7 @@ describe("YieldPool", function () {
       const { yieldPool, asset, owner, minDuration } = await loadFixture(
         deployYieldPoolFixture
       );
-      const depositAmount = ethers.parseEther("100");
+      const depositAmount = hre.ethers.parseEther("100");
       await yieldPool
         .connect(owner)
         .deposit(asset.target, depositAmount, minDuration);
@@ -116,22 +136,29 @@ describe("YieldPool", function () {
       await time.increase(minDuration + 1);
 
       const position = await yieldPool.getPosition(owner.address, 0);
-      const yieldAmount = await yieldPool.calculateYield(depositAmount, minDuration);
-      
-      await expect(yieldPool.connect(owner).withdraw(position.id))
-        .to.emit(yieldPool, "Withdrawn");
+      const yieldAmount = await yieldPool.calculateYield(
+        depositAmount,
+        minDuration
+      );
+
+      await expect(yieldPool.connect(owner).withdraw(position.id)).to.emit(
+        yieldPool,
+        "Withdrawn"
+      );
 
       const balanceBeforeClaim = await asset.balanceOf(owner.address);
       await yieldPool.connect(owner).claimWithdrawal(asset.target);
       const totalWithdrawal = depositAmount + yieldAmount;
-      expect(await asset.balanceOf(owner.address)).to.equal(balanceBeforeClaim + totalWithdrawal);
+      expect(await asset.balanceOf(owner.address)).to.equal(
+        balanceBeforeClaim + totalWithdrawal
+      );
     });
 
     it("Should not allow users to withdraw before the lock period", async function () {
       const { yieldPool, asset, owner, minDuration } = await loadFixture(
         deployYieldPoolFixture
       );
-      const depositAmount = ethers.parseEther("100");
+      const depositAmount = hre.ethers.parseEther("100");
       await yieldPool
         .connect(owner)
         .deposit(asset.target, depositAmount, minDuration);
@@ -148,21 +175,25 @@ describe("YieldPool", function () {
       const { yieldPool, asset, owner, minDuration } = await loadFixture(
         deployYieldPoolFixture
       );
-      const depositAmount = ethers.parseEther("100");
+      const depositAmount = hre.ethers.parseEther("100");
       await yieldPool
         .connect(owner)
         .deposit(asset.target, depositAmount, minDuration);
 
       const balanceBeforeUnstake = await asset.balanceOf(owner.address);
       const position = await yieldPool.getPosition(owner.address, 0);
-      await expect(yieldPool.connect(owner).unstake(position.id))
-        .to.emit(yieldPool, "Withdrawn");
+      await expect(yieldPool.connect(owner).unstake(position.id)).to.emit(
+        yieldPool,
+        "Withdrawn"
+      );
 
       const penalty = depositAmount / 10n;
       const amountAfterPenalty = depositAmount - penalty;
 
       await yieldPool.connect(owner).claimWithdrawal(asset.target);
-      expect(await asset.balanceOf(owner.address)).to.equal(balanceBeforeUnstake + amountAfterPenalty);
+      expect(await asset.balanceOf(owner.address)).to.equal(
+        balanceBeforeUnstake + amountAfterPenalty
+      );
     });
   });
 
@@ -171,7 +202,7 @@ describe("YieldPool", function () {
       const { yieldPool, asset, owner } = await loadFixture(
         deployYieldPoolFixture
       );
-      const reserveAmount = ethers.parseEther("50");
+      const reserveAmount = hre.ethers.parseEther("50");
       const initialReserve = await yieldPool.getYieldReserves(asset.target);
 
       await expect(
@@ -189,12 +220,14 @@ describe("YieldPool", function () {
       const { yieldPool, asset, otherAccount } = await loadFixture(
         deployYieldPoolFixture
       );
-      const reserveAmount = ethers.parseEther("50");
+      const reserveAmount = hre.ethers.parseEther("50");
       await expect(
         yieldPool
           .connect(otherAccount)
           .addYieldReserves(asset.target, reserveAmount)
-      ).to.be.revertedWithCustomError(yieldPool, "OwnableUnauthorizedAccount").withArgs(otherAccount.address);
+      )
+        .to.be.revertedWithCustomError(yieldPool, "OwnableUnauthorizedAccount")
+        .withArgs(otherAccount.address);
     });
   });
 });

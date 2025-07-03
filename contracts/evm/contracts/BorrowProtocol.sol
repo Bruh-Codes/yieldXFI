@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IYieldPool {
     function isTokenAllowed(address _address) external view returns (bool);
+    function addYield(address token, uint256 amount) external;
 }
 
 interface IWETH {
@@ -117,6 +118,10 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
         minimumCollateralAmount[address(0)] = 1 ether;
         protocolFee = 200; // 2% fee
         treasury = _owner; // Initialize treasury to owner's address
+    }
+
+    function setYieldPool(address _yieldPoolAddress) external onlyOwner {
+        yieldPool = IYieldPool(_yieldPoolAddress);
     }
 
     /**
@@ -374,23 +379,29 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
         require(loan.active, "Loan is not active");
         
 
-        uint256 totalDue = calculateTotalDue(msg.sender, _loanId);
-        uint256 feeAmount = (totalDue * protocolFee) / 10000; // protocolFee is in basis points
-        uint256 amountToProtocol = totalDue - feeAmount;
+        uint256 interest = (loan.borrowAmount * loan.interestRate * loan.duration) / (10000 * 365 days);
+        uint256 feeAmount = (interest * protocolFee) / 10000;
+        uint256 yieldAmount = interest - feeAmount;
 
         if (loan.borrowToken != address(0)) {
-            IERC20(loan.borrowToken).safeTransferFrom(msg.sender, address(this), amountToProtocol);
+            IERC20(loan.borrowToken).safeTransferFrom(msg.sender, address(this), calculateTotalDue(msg.sender, _loanId));
             if (feeAmount > 0) {
-                IERC20(loan.borrowToken).safeTransferFrom(msg.sender, treasury, feeAmount);
+                IERC20(loan.borrowToken).safeTransfer(treasury, feeAmount);
                 emit ProtocolFeeCollected(loan.borrowToken, feeAmount, treasury);
             }
+            if (yieldAmount > 0) {
+                yieldPool.addYield(loan.borrowToken, yieldAmount);
+            }
         } else {
-            require(msg.value == totalDue, "Must send exact amount due with native token");
+            require(msg.value == calculateTotalDue(msg.sender, _loanId), "Must send exact amount due with native token");
             if (feeAmount > 0) {
                 (bool success,) = treasury.call{value: feeAmount}("");
                 require(success, "Failed to transfer native token to treasury");
                 emit ProtocolFeeCollected(address(0), feeAmount, treasury);
             }
+            if (yieldAmount > 0) {
+            IYieldPool(address(yieldPool)).addYield(address(0), yieldAmount);
+        }
         }
 
         loan.active = false;
@@ -402,7 +413,7 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
             require(success, "Failed to return native token collateral");
         }
 
-        creditProfiles[msg.sender].totalRepaid += amountToProtocol;
+        creditProfiles[msg.sender].totalRepaid += (loan.borrowAmount + interest);
         creditProfiles[msg.sender].activeLoans -= 1;
 
         if (block.timestamp <= loan.startTime + loan.duration) {
@@ -414,7 +425,7 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
         creditProfiles[msg.sender].lastUpdated = block.timestamp;
         creditProfiles[msg.sender].score = calculateCreditScore(msg.sender);
 
-        emit LoanRepaid(msg.sender, _loanId, totalDue);
+        emit LoanRepaid(msg.sender, _loanId, (loan.borrowAmount + interest));
         emit CollateralWithdrawn(msg.sender, _loanId, loan.collateralAmount);
     }
 
@@ -534,6 +545,11 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
      */
     function getUserLoan(address user, uint256 loanId) external view returns (Loan memory) {
         return userLoans[user][loanId];
+    }
+
+    function receiveFunds(address token, uint256 amount) external {
+        require(msg.sender == address(yieldPool), "Only YieldPool can send funds");
+        emit PoolFunded(msg.sender, token, amount);
     }
 
     receive() external payable {}

@@ -3,7 +3,7 @@ import {
   loadFixture,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
-import hre, { ethers, ignition } from "hardhat";
+import hre, { ethers } from "hardhat";
 import {
   BorrowProtocol,
   BorrowProtocol__factory,
@@ -12,7 +12,6 @@ import {
 } from "../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { ERC20Mock, ERC20Mock__factory } from "../typechain-types";
-import console from "console";
 
 describe("BorrowProtocol", function () {
   let yieldPool: YieldPool;
@@ -31,18 +30,40 @@ describe("BorrowProtocol", function () {
   let mockERC20Factory: ERC20Mock__factory;
 
   async function deployBorrowProtocolFixture() {
-    [owner, otherAccount, developerAccount] = await ethers.getSigners();
+    [owner, otherAccount, developerAccount] = await hre.ethers.getSigners();
     yieldPoolFactory = await hre.ethers.getContractFactory("YieldPool");
-    yieldPool = await yieldPoolFactory.deploy(
-      yieldRate,
-      minDuration,
-      maxDuration
+    const BorrowProtocol = await hre.ethers.getContractFactory(
+      "BorrowProtocol"
     );
 
     borrowProtocolFactory = await hre.ethers.getContractFactory(
       "BorrowProtocol"
     );
-    borrowProtocol = await borrowProtocolFactory.deploy(yieldPool, owner);
+    yieldPoolFactory = await hre.ethers.getContractFactory("YieldPool");
+    yieldPool = await yieldPoolFactory.deploy(
+      yieldRate,
+      minDuration,
+      maxDuration,
+      hre.ethers.ZeroAddress // Placeholder for BorrowProtocol address
+    );
+
+    // Deploy BorrowProtocol first with a placeholder for YieldPool
+    borrowProtocol = await borrowProtocolFactory.deploy(
+      hre.ethers.ZeroAddress, // Placeholder for YieldPool address
+      owner.address
+    );
+
+    // Deploy YieldPool using the deployed BorrowProtocol's address
+    yieldPoolFactory = await hre.ethers.getContractFactory("YieldPool");
+    yieldPool = await yieldPoolFactory.deploy(
+      yieldRate,
+      minDuration,
+      maxDuration,
+      await borrowProtocol.getAddress()
+    );
+
+    // Set the correct YieldPool address in BorrowProtocol
+    await borrowProtocol.setYieldPool(await yieldPool.getAddress());
 
     mockERC20Factory = await hre.ethers.getContractFactory("ERC20Mock");
     mockERC20 = await mockERC20Factory.deploy("MockToken", "MTK");
@@ -50,11 +71,11 @@ describe("BorrowProtocol", function () {
     // Fund BorrowProtocol with some mockERC20 and ETH for testing
     await mockERC20.mint(
       borrowProtocol.getAddress(),
-      ethers.parseEther("10000")
+      hre.ethers.parseEther("10000")
     );
     await owner.sendTransaction({
       to: borrowProtocol.getAddress(),
-      value: ethers.parseEther("100"),
+      value: hre.ethers.parseEther("100"),
     });
 
     // Set a high credit score for otherAccount for testing purposes
@@ -112,33 +133,31 @@ describe("BorrowProtocol", function () {
     // Set token as allowed in yield pool
     await yieldPool.setTokenAllowed(mockERC20.getAddress(), true);
 
-    // Mint 10,000 tokens to borrowProtocol (initial liquidity)
-    await mockERC20.mint(
-      borrowProtocol.getAddress(),
-      ethers.parseEther("10000")
-    );
-
     // Mint 500 tokens to user (otherAccount) as collateral
-    await mockERC20.mint(otherAccount.address, ethers.parseEther("500"));
+    await mockERC20.mint(otherAccount.address, hre.ethers.parseEther("500"));
 
     // Approve 100 tokens for the protocol
     await mockERC20
       .connect(otherAccount)
-      .approve(borrowProtocol.getAddress(), ethers.parseEther("100"));
+      .approve(borrowProtocol.getAddress(), hre.ethers.parseEther("100"));
 
     // Set required protocol parameters
     await borrowProtocol.setMinCollateralAmount(
       mockERC20.getAddress(),
-      ethers.parseEther("10")
+      hre.ethers.parseEther("10")
     );
     await borrowProtocol.setMinimumDuration(3600); // 1 hour
     await borrowProtocol.setLiquidationThreshold(mockERC20.getAddress(), 80); // 80%
 
-    const collateralAmount = ethers.parseEther("100");
-    const borrowAmount = ethers.parseEther("50");
+    const collateralAmount = hre.ethers.parseEther("100");
+    const borrowAmount = hre.ethers.parseEther("50");
     const duration = 7 * 24 * 60 * 60; // 7 days
 
     // Perform borrow
+    const otherAccountBalanceBeforeBorrow = await mockERC20.balanceOf(
+      otherAccount.address
+    );
+
     await expect(
       borrowProtocol
         .connect(otherAccount)
@@ -159,7 +178,7 @@ describe("BorrowProtocol", function () {
 
     // Expect balance in contract to be initial + collateral - borrow
     const expectedBalance =
-      ethers.parseEther("20000") + collateralAmount - borrowAmount;
+      hre.ethers.parseEther("10000") + collateralAmount - borrowAmount;
 
     const actualBalance = await mockERC20.balanceOf(
       borrowProtocol.getAddress()
@@ -173,21 +192,21 @@ describe("BorrowProtocol", function () {
 
     // Set minimum collateral amount for native token (address(0))
     await borrowProtocol.setMinCollateralAmount(
-      ethers.ZeroAddress,
-      ethers.parseEther("0.1")
+      hre.ethers.ZeroAddress,
+      hre.ethers.parseEther("0.1")
     );
     // Set minimum duration
     await borrowProtocol.setMinimumDuration(3600); // 1 hour
 
-    const collateralAmount = ethers.parseEther("1");
-    const borrowAmount = ethers.parseEther("0.5");
+    const collateralAmount = hre.ethers.parseEther("1");
+    const borrowAmount = hre.ethers.parseEther("0.5");
     const duration = 7 * 24 * 60 * 60; // 7 days
 
     await expect(
       borrowProtocol.connect(otherAccount).Borrow(
-        ethers.ZeroAddress, // Native token as collateral
+        hre.ethers.ZeroAddress, // Native token as collateral
         collateralAmount,
-        ethers.ZeroAddress, // Native token as borrow token
+        hre.ethers.ZeroAddress, // Native token as borrow token
         borrowAmount,
         duration,
         { value: collateralAmount }
@@ -202,8 +221,8 @@ describe("BorrowProtocol", function () {
 
     // Check balances after borrow
     expect(
-      await ethers.provider.getBalance(borrowProtocol.getAddress())
-    ).to.equal(ethers.parseEther("100") + collateralAmount - borrowAmount);
+      await hre.ethers.provider.getBalance(borrowProtocol.getAddress())
+    ).to.equal(hre.ethers.parseEther("100") + collateralAmount - borrowAmount);
     // otherAccount's balance will be reduced by collateralAmount and increased by borrowAmount, plus gas fees
   });
 
@@ -212,27 +231,27 @@ describe("BorrowProtocol", function () {
       await loadFixture(deployBorrowProtocolFixture);
 
     // Fund the YieldPool with mockERC20
-    await mockERC20.mint(yieldPool.getAddress(), ethers.parseEther("1000"));
+    await mockERC20.mint(yieldPool.getAddress(), hre.ethers.parseEther("1000"));
     await yieldPool.setTokenAllowed(mockERC20.getAddress(), true);
 
     // User (otherAccount) gets some mockERC20 for collateral and repayment
-    await mockERC20.mint(otherAccount.address, ethers.parseEther("500"));
+    await mockERC20.mint(otherAccount.address, hre.ethers.parseEther("500"));
     await mockERC20
       .connect(otherAccount)
-      .approve(borrowProtocol.getAddress(), ethers.parseEther("200")); // Approve enough for collateral and repayment
+      .approve(borrowProtocol.getAddress(), hre.ethers.parseEther("200")); // Approve enough for collateral and repayment
 
     await borrowProtocol.setLiquidationThreshold(mockERC20.getAddress(), 80);
 
     // Set minimum collateral amount for mockERC20
     await borrowProtocol.setMinCollateralAmount(
       mockERC20.getAddress(),
-      ethers.parseEther("10")
+      hre.ethers.parseEther("10")
     );
     // Set minimum duration
     await borrowProtocol.setMinimumDuration(3600); // 1 hour
 
-    const collateralAmount = ethers.parseEther("100");
-    const borrowAmount = ethers.parseEther("50");
+    const collateralAmount = hre.ethers.parseEther("100");
+    const borrowAmount = hre.ethers.parseEther("50");
     const duration = 7 * 24 * 60 * 60; // 7 days
 
     await borrowProtocol
@@ -262,8 +281,8 @@ describe("BorrowProtocol", function () {
     // Check balances after repayment
     // borrowProtocol should have transferred collateral back to otherAccount
     expect(await mockERC20.balanceOf(otherAccount.address)).to.be.closeTo(
-      ethers.parseEther("500") + borrowAmount - BigInt(totalDue),
-      ethers.parseEther("0.0001") // Allow for small discrepancies due to interest calculation
+      hre.ethers.parseEther("500") + borrowAmount - BigInt(totalDue),
+      hre.ethers.parseEther("0.0001") // Allow for small discrepancies due to interest calculation
     );
   });
 
@@ -274,26 +293,26 @@ describe("BorrowProtocol", function () {
     // Fund the BorrowProtocol with ETH
     await owner.sendTransaction({
       to: borrowProtocol.getAddress(),
-      value: ethers.parseEther("1000"),
+      value: hre.ethers.parseEther("1000"),
     });
 
     await borrowProtocol.setMinCollateralAmount(
-      ethers.ZeroAddress,
-      ethers.parseEther("0.1")
+      hre.ethers.ZeroAddress,
+      hre.ethers.parseEther("0.1")
     );
 
     await borrowProtocol.setMinimumDuration(3600); // 1 hour
 
-    const collateralAmount = ethers.parseEther("1");
-    const borrowAmount = ethers.parseEther("0.5");
+    const collateralAmount = hre.ethers.parseEther("1");
+    const borrowAmount = hre.ethers.parseEther("0.5");
     const duration = 7 * 24 * 60 * 60; // 7 days
 
     await borrowProtocol
       .connect(otherAccount)
       .Borrow(
-        ethers.ZeroAddress,
+        hre.ethers.ZeroAddress,
         collateralAmount,
-        ethers.ZeroAddress,
+        hre.ethers.ZeroAddress,
         borrowAmount,
         duration,
         { value: collateralAmount }
@@ -304,10 +323,10 @@ describe("BorrowProtocol", function () {
 
     // Simulate time passing
     const targetTimestamp = Number(loan.startTime) + duration;
-    await ethers.provider.send("evm_setNextBlockTimestamp", [targetTimestamp]);
-    await ethers.provider.send("evm_mine", []);
+    await hre.ethers.provider.send("evm_setNextBlockTimestamp", [targetTimestamp]);
+    await hre.ethers.provider.send("evm_mine", []);
 
-    const initialBalance = await ethers.provider.getBalance(
+    const initialBalance = await hre.ethers.provider.getBalance(
       otherAccount.address
     );
 
@@ -334,10 +353,10 @@ describe("BorrowProtocol", function () {
     expect(loanAfter.active).to.equal(false);
 
     // Check that user got collateral back
-    const finalBalance = await ethers.provider.getBalance(otherAccount.address);
+    const finalBalance = await hre.ethers.provider.getBalance(otherAccount.address);
     expect(finalBalance).to.be.closeTo(
       initialBalance - totalDue + collateralAmount - txCost,
-      ethers.parseEther("0.001") // account for rounding + gas buffer
+      hre.ethers.parseEther("0.001") // account for rounding + gas buffer
     );
   });
 
@@ -345,8 +364,8 @@ describe("BorrowProtocol", function () {
     const { borrowProtocol, mockERC20 } = await loadFixture(
       deployBorrowProtocolFixture
     );
-    const collateralAmount = ethers.parseEther("100");
-    const borrowAmount = ethers.parseEther("50");
+    const collateralAmount = hre.ethers.parseEther("100");
+    const borrowAmount = hre.ethers.parseEther("50");
     const liquidationThreshold = 80; // Default for address(0)
 
     // Set liquidation threshold for mockERC20
@@ -370,7 +389,7 @@ describe("BorrowProtocol", function () {
         0,
         mockERC20.getAddress()
       )
-    ).to.equal(ethers.MaxUint256);
+    ).to.equal(hre.ethers.MaxUint256);
   });
 
   it("should calculate total due correctly", async () => {
@@ -378,26 +397,26 @@ describe("BorrowProtocol", function () {
       await loadFixture(deployBorrowProtocolFixture);
 
     // Fund the YieldPool with mockERC20
-    await mockERC20.mint(yieldPool.getAddress(), ethers.parseEther("1000"));
+    await mockERC20.mint(yieldPool.getAddress(), hre.ethers.parseEther("1000"));
     await yieldPool.setTokenAllowed(mockERC20.getAddress(), true);
 
     // User (otherAccount) gets some mockERC20 for collateral
-    await mockERC20.mint(otherAccount.address, ethers.parseEther("500"));
+    await mockERC20.mint(otherAccount.address, hre.ethers.parseEther("500"));
     await mockERC20
       .connect(otherAccount)
-      .approve(borrowProtocol.getAddress(), ethers.parseEther("100"));
+      .approve(borrowProtocol.getAddress(), hre.ethers.parseEther("100"));
 
     // Set minimum collateral amount for mockERC20
     await borrowProtocol.setMinCollateralAmount(
       mockERC20.getAddress(),
-      ethers.parseEther("10")
+      hre.ethers.parseEther("10")
     );
 
     // Set minimum duration
     await borrowProtocol.setMinimumDuration(3600); // 1 hour
 
-    const collateralAmount = ethers.parseEther("100");
-    const borrowAmount = ethers.parseEther("50");
+    const collateralAmount = hre.ethers.parseEther("100");
+    const borrowAmount = hre.ethers.parseEther("50");
     const duration = 365 * 24 * 60 * 60; // 365 days
 
     await borrowProtocol.setLiquidationThreshold(mockERC20.getAddress(), 80); // 80%
@@ -452,20 +471,20 @@ describe("BorrowProtocol", function () {
     );
 
     // Simulate a loan and repayment to affect credit score
-    await mockERC20.mint(yieldPool.getAddress(), ethers.parseEther("1000"));
+    await mockERC20.mint(yieldPool.getAddress(), hre.ethers.parseEther("1000"));
     await yieldPool.setTokenAllowed(mockERC20.getAddress(), true);
-    await mockERC20.mint(otherAccount.address, ethers.parseEther("500"));
+    await mockERC20.mint(otherAccount.address, hre.ethers.parseEther("500"));
     await mockERC20
       .connect(otherAccount)
-      .approve(borrowProtocol.getAddress(), ethers.parseEther("200"));
+      .approve(borrowProtocol.getAddress(), hre.ethers.parseEther("200"));
     await borrowProtocol.setMinCollateralAmount(
       mockERC20.getAddress(),
-      ethers.parseEther("10")
+      hre.ethers.parseEther("10")
     );
     await borrowProtocol.setMinimumDuration(3600);
 
-    const collateralAmount = ethers.parseEther("100");
-    const borrowAmount = ethers.parseEther("50");
+    const collateralAmount = hre.ethers.parseEther("100");
+    const borrowAmount = hre.ethers.parseEther("50");
     const duration = 7 * 24 * 60 * 60;
     await borrowProtocol.setLiquidationThreshold(mockERC20.getAddress(), 80); // 80%
 
@@ -489,10 +508,10 @@ describe("BorrowProtocol", function () {
     );
 
     // Simulate another loan and late repayment
-    await mockERC20.mint(otherAccount.address, ethers.parseEther("200"));
+    await mockERC20.mint(otherAccount.address, hre.ethers.parseEther("200"));
     await mockERC20
       .connect(otherAccount)
-      .approve(borrowProtocol.getAddress(), ethers.parseEther("200"));
+      .approve(borrowProtocol.getAddress(), hre.ethers.parseEther("200"));
 
     await borrowProtocol
       .connect(otherAccount)
@@ -523,15 +542,15 @@ describe("BorrowProtocol", function () {
     const { borrowProtocol, otherAccount, mockERC20, yieldPool } =
       await loadFixture(deployBorrowProtocolFixture);
 
-    await mockERC20.mint(yieldPool.getAddress(), ethers.parseEther("1000"));
+    await mockERC20.mint(yieldPool.getAddress(), hre.ethers.parseEther("1000"));
     await yieldPool.setTokenAllowed(mockERC20.getAddress(), true);
-    await mockERC20.mint(otherAccount.address, ethers.parseEther("500"));
+    await mockERC20.mint(otherAccount.address, hre.ethers.parseEther("500"));
     await mockERC20
       .connect(otherAccount)
-      .approve(borrowProtocol.getAddress(), ethers.parseEther("200"));
+      .approve(borrowProtocol.getAddress(), hre.ethers.parseEther("200"));
     await borrowProtocol.setMinCollateralAmount(
       mockERC20.getAddress(),
-      ethers.parseEther("10")
+      hre.ethers.parseEther("10")
     );
     await borrowProtocol.setMinimumDuration(3600);
     await borrowProtocol.setLiquidationThreshold(mockERC20.getAddress(), 80); // 80%
@@ -541,9 +560,9 @@ describe("BorrowProtocol", function () {
       .connect(otherAccount)
       .Borrow(
         mockERC20.getAddress(),
-        ethers.parseEther("100"),
+        hre.ethers.parseEther("100"),
         mockERC20.getAddress(),
-        ethers.parseEther("50"),
+        hre.ethers.parseEther("50"),
         3600
       );
 
@@ -552,9 +571,9 @@ describe("BorrowProtocol", function () {
       .connect(otherAccount)
       .Borrow(
         mockERC20.getAddress(),
-        ethers.parseEther("50"),
+        hre.ethers.parseEther("50"),
         mockERC20.getAddress(),
-        ethers.parseEther("25"),
+        hre.ethers.parseEther("25"),
         7200
       );
 
@@ -620,7 +639,7 @@ describe("BorrowProtocol", function () {
     const { borrowProtocol } = await loadFixture(deployBorrowProtocolFixture);
     // Default for address(0) is 80
     expect(
-      await borrowProtocol.getLiquidationThreshold(ethers.ZeroAddress)
+      await borrowProtocol.getLiquidationThreshold(hre.ethers.ZeroAddress)
     ).to.equal(80);
   });
 
@@ -628,23 +647,23 @@ describe("BorrowProtocol", function () {
     const { borrowProtocol } = await loadFixture(deployBorrowProtocolFixture);
     // Default for address(0) is 1 ether
     expect(
-      await borrowProtocol.getMinimumCollateralAmount(ethers.ZeroAddress)
-    ).to.equal(ethers.parseEther("1"));
+      await borrowProtocol.getMinimumCollateralAmount(hre.ethers.ZeroAddress)
+    ).to.equal(hre.ethers.parseEther("1"));
   });
 
   it("should get user loan ids", async () => {
     const { borrowProtocol, otherAccount, mockERC20, yieldPool } =
       await loadFixture(deployBorrowProtocolFixture);
 
-    await mockERC20.mint(yieldPool.getAddress(), ethers.parseEther("1000"));
+    await mockERC20.mint(yieldPool.getAddress(), hre.ethers.parseEther("1000"));
     await yieldPool.setTokenAllowed(mockERC20.getAddress(), true);
-    await mockERC20.mint(otherAccount.address, ethers.parseEther("500"));
+    await mockERC20.mint(otherAccount.address, hre.ethers.parseEther("500"));
     await mockERC20
       .connect(otherAccount)
-      .approve(borrowProtocol.getAddress(), ethers.parseEther("200"));
+      .approve(borrowProtocol.getAddress(), hre.ethers.parseEther("200"));
     await borrowProtocol.setMinCollateralAmount(
       mockERC20.getAddress(),
-      ethers.parseEther("10")
+      hre.ethers.parseEther("10")
     );
     await borrowProtocol.setMinimumDuration(3600);
     await borrowProtocol.setLiquidationThreshold(mockERC20.getAddress(), 80); // 80%
@@ -653,9 +672,9 @@ describe("BorrowProtocol", function () {
       .connect(otherAccount)
       .Borrow(
         mockERC20.getAddress(),
-        ethers.parseEther("100"),
+        hre.ethers.parseEther("100"),
         mockERC20.getAddress(),
-        ethers.parseEther("50"),
+        hre.ethers.parseEther("50"),
         3600
       );
 
@@ -663,9 +682,9 @@ describe("BorrowProtocol", function () {
       .connect(otherAccount)
       .Borrow(
         mockERC20.getAddress(),
-        ethers.parseEther("50"),
+        hre.ethers.parseEther("50"),
         mockERC20.getAddress(),
-        ethers.parseEther("25"),
+        hre.ethers.parseEther("25"),
         7200
       );
 
@@ -681,15 +700,15 @@ describe("BorrowProtocol", function () {
     const { borrowProtocol, otherAccount, mockERC20, yieldPool } =
       await loadFixture(deployBorrowProtocolFixture);
 
-    await mockERC20.mint(yieldPool.getAddress(), ethers.parseEther("1000"));
+    await mockERC20.mint(yieldPool.getAddress(), hre.ethers.parseEther("1000"));
     await yieldPool.setTokenAllowed(mockERC20.getAddress(), true);
-    await mockERC20.mint(otherAccount.address, ethers.parseEther("500"));
+    await mockERC20.mint(otherAccount.address, hre.ethers.parseEther("500"));
     await mockERC20
       .connect(otherAccount)
-      .approve(borrowProtocol.getAddress(), ethers.parseEther("200"));
+      .approve(borrowProtocol.getAddress(), hre.ethers.parseEther("200"));
     await borrowProtocol.setMinCollateralAmount(
       mockERC20.getAddress(),
-      ethers.parseEther("10")
+      hre.ethers.parseEther("10")
     );
     await borrowProtocol.setMinimumDuration(3600);
     await borrowProtocol.setLiquidationThreshold(mockERC20.getAddress(), 80); // 80%
@@ -698,32 +717,32 @@ describe("BorrowProtocol", function () {
       .connect(otherAccount)
       .Borrow(
         mockERC20.getAddress(),
-        ethers.parseEther("100"),
+        hre.ethers.parseEther("100"),
         mockERC20.getAddress(),
-        ethers.parseEther("50"),
+        hre.ethers.parseEther("50"),
         3600
       );
 
     const loan = await borrowProtocol.getUserLoan(otherAccount.address, 0);
     expect(loan.loanId).to.equal(0);
-    expect(loan.collateralAmount).to.equal(ethers.parseEther("100"));
+    expect(loan.collateralAmount).to.equal(hre.ethers.parseEther("100"));
   });
 
   it("should allow owner to fund pool", async () => {
     const { borrowProtocol, owner, mockERC20 } = await loadFixture(
       deployBorrowProtocolFixture
     );
-    await mockERC20.mint(owner.address, ethers.parseEther("100")); // Owner needs tokens to fund
+    await mockERC20.mint(owner.address, hre.ethers.parseEther("100")); // Owner needs tokens to fund
     await mockERC20
       .connect(owner)
-      .approve(borrowProtocol.getAddress(), ethers.parseEther("100"));
+      .approve(borrowProtocol.getAddress(), hre.ethers.parseEther("100"));
 
-    const fundAmount = ethers.parseEther("50");
+    const fundAmount = hre.ethers.parseEther("50");
     await expect(
       borrowProtocol.connect(owner).fundPool(mockERC20.getAddress(), fundAmount)
     ).to.emit(borrowProtocol, "PoolFunded");
     expect(await mockERC20.balanceOf(borrowProtocol.getAddress())).to.equal(
-      ethers.parseEther("10000") + fundAmount
+      hre.ethers.parseEther("10000") + fundAmount
     );
   });
 
@@ -737,17 +756,17 @@ describe("BorrowProtocol", function () {
       yieldPool,
     } = await loadFixture(deployBorrowProtocolFixture);
 
-    await mockERC20.mint(yieldPool.getAddress(), ethers.parseEther("1000"));
+    await mockERC20.mint(yieldPool.getAddress(), hre.ethers.parseEther("1000"));
     await yieldPool.setTokenAllowed(mockERC20.getAddress(), true);
 
-    await mockERC20.mint(otherAccount.address, ethers.parseEther("500"));
+    await mockERC20.mint(otherAccount.address, hre.ethers.parseEther("500"));
     await mockERC20
       .connect(otherAccount)
-      .approve(borrowProtocol.getAddress(), ethers.parseEther("100"));
+      .approve(borrowProtocol.getAddress(), hre.ethers.parseEther("100"));
 
     await borrowProtocol.setMinCollateralAmount(
       mockERC20.getAddress(),
-      ethers.parseEther("10")
+      hre.ethers.parseEther("10")
     );
     await borrowProtocol.setMinimumDuration(3600);
 
@@ -755,8 +774,8 @@ describe("BorrowProtocol", function () {
     await borrowProtocol.setCreditScoreForTesting(otherAccount.address, 580); // requires health factor = 140
     await borrowProtocol.setLiquidationThreshold(mockERC20.getAddress(), 100); // max allowed
 
-    const collateralAmount = ethers.parseEther("100");
-    const borrowAmount = ethers.parseEther("71"); // Health factor = 100 * 100 / 71 = ~140.84 (passes)
+    const collateralAmount = hre.ethers.parseEther("100");
+    const borrowAmount = hre.ethers.parseEther("71"); // Health factor = 100 * 100 / 71 = ~140.84 (passes)
 
     await borrowProtocol
       .connect(otherAccount)

@@ -17,7 +17,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
     // Constants
     uint256 private constant YEAR = 365 days;
     uint256 private constant EMERGENCY_TIMELOCK = 24 hours;
-    address private constant NATIVE_ETH = address(0x1);
+    address private constant NATIVE_ETH = address(0);
 
     // Configurable parameters
     uint256 private yieldRate; // in basis points (e.g., 1000 = 10%)
@@ -62,7 +62,10 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
     event EmergencyWithdrawalInitiated(uint256 timestamp);
     event PenaltyCollected(address token, uint256 amount);
 
-    constructor(uint256 _yieldRate, uint256 _minDuration, uint256 _maxDuration) Ownable(msg.sender) {
+    address private borrowProtocolAddress;
+
+    constructor(uint256 _yieldRate, uint256 _minDuration, uint256 _maxDuration, address _borrowProtocolAddress) Ownable(msg.sender) {
+        borrowProtocolAddress = _borrowProtocolAddress;
         require(_yieldRate > 0 && _yieldRate <= 10000, "Invalid yield rate");
         require(_minDuration > 0 && _maxDuration > _minDuration, "Invalid durations");
 
@@ -396,6 +399,18 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
      */
     function getPositionOwner(uint256 positionId) external view returns (address) {
         return positionOwners[positionId];
+    }
+
+    function addYield(address token, uint256 amount) external {
+        require(msg.sender == borrowProtocolAddress, "Only BorrowProtocol can add yield");
+        yieldReserves[token] += amount;
+        emit YieldReserveAdded(token, amount);
+    }
+
+    function transferToBorrowProtocol(address token, uint256 amount) external onlyOwner {
+        require(allowedTokens[token], "Token not allowed");
+        require(IERC20(token).balanceOf(address(this)) >= amount, "Insufficient balance");
+        IERC20(token).safeTransfer(borrowProtocolAddress, amount);
     }
 
     receive() external payable {}

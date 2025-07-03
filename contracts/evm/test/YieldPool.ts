@@ -21,9 +21,17 @@ describe("YieldPool", function () {
     const YieldPool = await hre.ethers.getContractFactory("YieldPool");
     const BorrowProtocol = await hre.ethers.getContractFactory("BorrowProtocol");
 
+    const mockAavePoolFactory = await hre.ethers.getContractFactory("MockAavePool");
+    const mockAavePool = await mockAavePoolFactory.deploy();
+
+    const XFIMock = await hre.ethers.getContractFactory("XFIMock");
+    const xfiMock = await XFIMock.deploy();
+
     const borrowProtocolInstance = await BorrowProtocol.deploy(
       hre.ethers.ZeroAddress, // Placeholder for YieldPool address
-      owner.address
+      owner.address,
+      await mockAavePool.getAddress(),
+      await xfiMock.getAddress()
     );
 
     const yieldPool = await YieldPool.deploy(

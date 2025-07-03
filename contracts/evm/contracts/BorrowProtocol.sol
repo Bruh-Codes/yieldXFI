@@ -5,16 +5,18 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./MockAavePool.sol";
 
 interface IYieldPool {
     function isTokenAllowed(address _address) external view returns (bool);
     function addYield(address token, uint256 amount) external;
 }
 
-interface IWETH {
-    function deposit() external payable;
-    function transfer(address to, uint256 value) external returns (bool);
-    function withdraw(uint256) external;
+
+
+interface IMockAavePool {
+    function deposit(address asset, uint256 amount, address onBehalfOf) external;
+    function withdraw(address asset, uint256 amount, address to) external;
 }
 
 
@@ -34,6 +36,13 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
     /// @notice The address of the YieldPool contract.
     IYieldPool private yieldPool;
 
+    /// @notice The address of the Aave-like yield pool contract.
+            IMockAavePool private aaveLikeYieldPool;
+
+    function getAaveLikeYieldPool() external view returns (IMockAavePool) {
+        return aaveLikeYieldPool;
+    }
+
     /// @notice Represents a loan in the protocol.
     struct Loan {
         uint256 loanId;
@@ -47,6 +56,7 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
         address userAddress;
         uint256 amountPaid;
         bool active;
+        uint256 chainId;
     }
 
     /// @notice Represents a user's credit profile.
@@ -107,13 +117,20 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
     /// @notice Emitted when protocol fees are collected.
     event ProtocolFeeCollected(address indexed token, uint256 amount, address indexed to);
 
-    /**
-     * @notice Constructs the BorrowProtocol contract.
-     * @param _yieldPoolAddress The address of the YieldPool contract.
-     * @param _owner The address of the owner.
-     */
-    constructor(address _yieldPoolAddress, address _owner) Ownable(_owner) {
+    address private xfiAddress;
+
+    function getXfiAddress() external view returns (address) {
+        return xfiAddress;
+    }
+
+    function getAaveLikeYieldPoolAddress() external view returns (address) {
+        return address(aaveLikeYieldPool);
+    }
+
+    constructor(address _yieldPoolAddress, address _owner, address _aaveLikeYieldPoolAddress, address _xfiAddress) Ownable(_owner) {
         yieldPool = IYieldPool(_yieldPoolAddress);
+        aaveLikeYieldPool = IMockAavePool(_aaveLikeYieldPoolAddress);
+        xfiAddress = _xfiAddress;
         liquidationThresholds[address(0)] = 80;
         minimumCollateralAmount[address(0)] = 1 ether;
         protocolFee = 200; // 2% fee
@@ -183,6 +200,40 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
      */
     function setTreasury(address _treasury) external onlyOwner {
         treasury = _treasury;
+    }
+
+    // Mocked cross-chain state
+    mapping(address => mapping(uint256 => uint256)) public crossChainStakedAmount;
+    mapping(address => mapping(uint256 => uint256)) public crossChainBorrowedAmount;
+
+    event CrossChainDataSent(address indexed user, uint256 stakedAmount, uint256 borrowedAmount, uint256 destinationChainId);
+
+    /**
+     * @notice Mock function to simulate receiving cross-chain data.
+     * This would be called by a relayer in a real cross-chain setup.
+     * @param _user The user's address.
+     * @param _stakedAmount The amount staked on the source chain.
+     * @param _borrowedAmount The amount borrowed on the source chain.
+     * @param _sourceChainId The ID of the source chain.
+     */
+    function receiveCrossChainData(address _user, uint256 _stakedAmount, uint256 _borrowedAmount, uint256 _sourceChainId) external onlyOwner {
+        // In a real scenario, this would involve more complex verification
+        // and potentially updating a global state for cross-chain credit.
+        crossChainStakedAmount[_user][_sourceChainId] = _stakedAmount;
+        crossChainBorrowedAmount[_user][_sourceChainId] = _borrowedAmount;
+    }
+
+    /**
+     * @notice Mock function to simulate sending cross-chain data.
+     * This would trigger a message through LayerZero/Axelar.
+     * @param _user The user's address.
+     * @param _stakedAmount The amount staked on this chain.
+     * @param _borrowedAmount The amount borrowed on this chain.
+     * @param _destinationChainId The ID of the destination chain.
+     */
+    function sendCrossChainData(address _user, uint256 _stakedAmount, uint256 _borrowedAmount, uint256 _destinationChainId) internal {
+        // In a real scenario, this would interact with a cross-chain messaging protocol
+        emit CrossChainDataSent(_user, _stakedAmount, _borrowedAmount, _destinationChainId);
     }
 
 
@@ -305,7 +356,8 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
         uint256 _collateralAmount,
         address _borrowToken,
         uint256 _borrowAmount,
-        uint256 _duration
+        uint256 _duration,
+        uint256 _destinationChainId
     ) external payable nonReentrant {
         uint256 score = getCreditScore(msg.sender);
         CreditScoreTier tier = getCreditScoreTier(score);
@@ -329,6 +381,8 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
 
         if (_collateralToken != address(0)) {
             IERC20(_collateralToken).safeTransferFrom(msg.sender, address(this), _collateralAmount);
+            IERC20(_collateralToken).approve(address(aaveLikeYieldPool), _collateralAmount);
+            aaveLikeYieldPool.deposit(_collateralToken, _collateralAmount, msg.sender);
         } else {
             require(msg.value == _collateralAmount, "Must send exact collateral amount with native token");
         }
@@ -354,7 +408,8 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
             amountPaid: 0,
             interestRate: interestRate,
             userAddress: msg.sender,
-            active: true
+            active: true,
+            chainId: block.chainid
         });
 
         userLoanIds[msg.sender].push(loanId);
@@ -367,13 +422,14 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
 
         emit LoanCreated(msg.sender, loanId, _borrowAmount, _borrowToken, _duration);
         emit CollateralDeposited(msg.sender, _collateralToken, _collateralAmount);
+        sendCrossChainData(msg.sender, _collateralAmount, _borrowAmount, _destinationChainId);
     }
 
     /**
      * @notice Allows a user to repay a loan.
      * @param _loanId The ID of the loan to repay.
      */
-    function payLoan(uint _loanId) external payable nonReentrant {
+    function payLoan(uint _loanId, uint256 _destinationChainId) external payable nonReentrant {
         Loan storage loan = userLoans[msg.sender][_loanId];
         require(loan.loanId == _loanId, "Loan not found");
         require(loan.active, "Loan is not active");
@@ -407,10 +463,10 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
         loan.active = false;
 
         if (loan.collateralToken != address(0)) {
-            IERC20(loan.collateralToken).safeTransfer(msg.sender, loan.collateralAmount);
+            aaveLikeYieldPool.withdraw(loan.collateralToken, loan.collateralAmount, msg.sender);
         } else {
-            (bool success,) = msg.sender.call{value: loan.collateralAmount}("");
-            require(success, "Failed to return native token collateral");
+            (bool success, ) = loan.userAddress.call{value: loan.collateralAmount}("");
+            require(success, "Failed to transfer collateral back to user");
         }
 
         creditProfiles[msg.sender].totalRepaid += (loan.borrowAmount + interest);
@@ -427,6 +483,7 @@ contract BorrowProtocol is ReentrancyGuard, Ownable {
 
         emit LoanRepaid(msg.sender, _loanId, (loan.borrowAmount + interest));
         emit CollateralWithdrawn(msg.sender, _loanId, loan.collateralAmount);
+        sendCrossChainData(msg.sender, loan.collateralAmount, 0, _destinationChainId);
     }
 
     

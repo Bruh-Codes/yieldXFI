@@ -1,6 +1,6 @@
-# Sample Hardhat Project
+# xfiCredit EVM Contracts
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+This directory contains the Solidity smart contracts for the xfiCredit decentralized borrowing and lending protocol. These contracts manage the core logic for lending, borrowing, collateral, and interest accrual. They are designed to be deployed across multiple EVM-compatible blockchains, including Arbitrum, Base, Binance Smart Chain (BSC), Fantom, and zkSync.
 
 Try running some of the following tasks:
 

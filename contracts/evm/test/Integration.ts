@@ -4,7 +4,7 @@ import {
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import hre from "hardhat";
-import { BorrowProtocol, YieldPool, ERC20Mock } from "../typechain-types";
+import { BorrowProtocol, YieldPool, ERC20Mock, MockAavePool, XFIMock } from "../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 describe("Integration Test: YieldPool and BorrowProtocol", function () {
@@ -14,6 +14,8 @@ describe("Integration Test: YieldPool and BorrowProtocol", function () {
   let owner: SignerWithAddress;
   let depositor: SignerWithAddress;
   let borrower: SignerWithAddress;
+  let mockAavePool: MockAavePool;
+  let xfiMock: XFIMock;
 
   const yieldRate = 1000; // 10%
   const minDuration = 7 * 24 * 60 * 60; // 7 days
@@ -25,9 +27,17 @@ describe("Integration Test: YieldPool and BorrowProtocol", function () {
     const borrowProtocolFactory = await hre.ethers.getContractFactory(
       "BorrowProtocol"
     );
+    const mockAavePoolFactory = await hre.ethers.getContractFactory("MockAavePool");
+    mockAavePool = await mockAavePoolFactory.deploy();
+
+    const XFIMock = await hre.ethers.getContractFactory("XFIMock");
+    const xfiMock = await XFIMock.deploy();
+
     borrowProtocol = await borrowProtocolFactory.deploy(
       hre.ethers.ZeroAddress, // Placeholder, will be set later
-      owner.address
+      owner.address,
+      mockAavePool.getAddress(),
+      xfiMock.getAddress()
     );
 
     // Deploy YieldPool
@@ -73,6 +83,7 @@ describe("Integration Test: YieldPool and BorrowProtocol", function () {
       owner,
       depositor,
       borrower,
+      xfiMock,
     };
   }
 
@@ -110,7 +121,8 @@ describe("Integration Test: YieldPool and BorrowProtocol", function () {
         collateralAmount,
         mockERC20.getAddress(),
         borrowAmount,
-        minDuration
+        minDuration,
+        123 // Example destinationChainId
       );
 
     // 3. Borrower repays the loan
@@ -123,7 +135,7 @@ describe("Integration Test: YieldPool and BorrowProtocol", function () {
     await mockERC20
       .connect(borrower)
       .approve(borrowProtocol.getAddress(), totalDue);
-    await borrowProtocol.connect(borrower).payLoan(loanId);
+    await borrowProtocol.connect(borrower).payLoan(loanId, 123);
 
     // 4. Depositor withdraws from YieldPool
     const positionId = 1;
@@ -234,7 +246,8 @@ describe("Integration Test: YieldPool and BorrowProtocol", function () {
         collateralAmount,
         mockERC20.getAddress(),
         borrowAmount,
-        loanDuration
+        loanDuration,
+        123 // Example destinationChainId
       );
 
     // Verify loan details using getUserLoans

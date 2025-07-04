@@ -1,4 +1,6 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# xfiCredit Frontend
+
+This is the frontend application for xfiCredit, a decentralized borrowing and lending protocol. It's built using [Next.js](https://nextjs.org) and provides the user interface for interacting with the protocol.
 
 ## Getting Started
 

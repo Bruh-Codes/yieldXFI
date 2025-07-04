@@ -37,12 +37,13 @@ describe("YieldPool", function () {
     const yieldPool = await YieldPool.deploy(
       yieldRate,
       minDuration,
-      maxDuration,
-      borrowProtocolInstance.getAddress()
+      maxDuration
     );
 
     // Set the correct yield pool address in BorrowProtocol
     await borrowProtocolInstance.setYieldPool(yieldPool.getAddress());
+    // Set the correct borrow protocol address in YieldPool
+    await yieldPool.setBorrowProtocolAddress(borrowProtocolInstance.getAddress());
 
     // Assign to the outer scope variable
     borrowProtocol = borrowProtocolInstance;

@@ -33,23 +33,8 @@ describe("BorrowProtocol", function () {
 
   async function deployBorrowProtocolFixture() {
     [owner, otherAccount, developerAccount] = await hre.ethers.getSigners();
-    yieldPoolFactory = await hre.ethers.getContractFactory("YieldPool");
-    const BorrowProtocol = await hre.ethers.getContractFactory(
-      "BorrowProtocol"
-    );
-
-    borrowProtocolFactory = await hre.ethers.getContractFactory(
-      "BorrowProtocol"
-    );
-    yieldPoolFactory = await hre.ethers.getContractFactory("YieldPool");
-    yieldPool = await yieldPoolFactory.deploy(
-      yieldRate,
-      minDuration,
-      maxDuration,
-      hre.ethers.ZeroAddress // Placeholder for BorrowProtocol address
-    );
-
-    // Deploy BorrowProtocol first with a placeholder for YieldPool
+    
+    // Deploy MockAavePool and XFIMock first
     const mockAavePoolFactory = await hre.ethers.getContractFactory(
       "MockAavePool"
     );
@@ -58,24 +43,27 @@ describe("BorrowProtocol", function () {
     const XFIMockFactory = await hre.ethers.getContractFactory("XFIMock");
     const xfiMock = await XFIMockFactory.deploy();
 
+    // Deploy YieldPool
+    yieldPoolFactory = await hre.ethers.getContractFactory("YieldPool");
+    yieldPool = await yieldPoolFactory.deploy(
+      yieldRate,
+      minDuration,
+      maxDuration
+    );
+
+    // Deploy BorrowProtocol, passing the actual YieldPool address
+    borrowProtocolFactory = await hre.ethers.getContractFactory(
+      "BorrowProtocol"
+    );
     borrowProtocol = await borrowProtocolFactory.deploy(
-      hre.ethers.ZeroAddress, // Placeholder for YieldPool address
+      await yieldPool.getAddress(),
       owner.address,
       await mockAavePool.getAddress(),
       await xfiMock.getAddress()
     );
 
-    // Deploy YieldPool using the deployed BorrowProtocol's address
-    yieldPoolFactory = await hre.ethers.getContractFactory("YieldPool");
-    yieldPool = await yieldPoolFactory.deploy(
-      yieldRate,
-      minDuration,
-      maxDuration,
-      await borrowProtocol.getAddress()
-    );
-
-    // Set the correct YieldPool address in BorrowProtocol
-    await borrowProtocol.setYieldPool(await yieldPool.getAddress());
+    // Set the correct BorrowProtocol address in YieldPool
+    await yieldPool.setBorrowProtocolAddress(await borrowProtocol.getAddress());
 
     mockERC20Factory = await hre.ethers.getContractFactory("ERC20Mock");
     mockERC20 = await mockERC20Factory.deploy("MockToken", "MTK");

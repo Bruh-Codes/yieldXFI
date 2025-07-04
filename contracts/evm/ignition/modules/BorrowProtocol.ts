@@ -1,15 +1,19 @@
-import { buildModule } from "@nomicfoundation/ignition-core";
+import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
+import MocksModule from "./Mocks";
 import YieldPoolModule from "./YieldPool";
 
 const BorrowProtocolModule = buildModule("BorrowProtocolModule", (m) => {
-  const contractOwner = m.getAccount(0);
+    const { aveLikeAddress, xfiAddress } = m.useModule(MocksModule);
+    const { yieldPool } = m.useModule(YieldPoolModule);
 
-  const borrowProtocol = m.contract("BorrowProtocol", [
-    m.getParameter("yieldPoolAddress"),
-    contractOwner,
-  ]);
+    const borrowProtocol = m.contract("BorrowProtocol", [
+        yieldPool,
+        m.getAccount(0),
+        aveLikeAddress,
+        xfiAddress,
+    ]);
 
-  return { borrowProtocol };
+    return { borrowProtocol };
 });
 
 export default BorrowProtocolModule;

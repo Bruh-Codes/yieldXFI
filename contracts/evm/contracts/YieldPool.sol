@@ -64,8 +64,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 
     address private borrowProtocolAddress;
 
-    constructor(uint256 _yieldRate, uint256 _minDuration, uint256 _maxDuration, address _borrowProtocolAddress) Ownable(msg.sender) {
-        borrowProtocolAddress = _borrowProtocolAddress;
+    constructor(uint256 _yieldRate, uint256 _minDuration, uint256 _maxDuration) Ownable(msg.sender) {
         require(_yieldRate > 0 && _yieldRate <= 10000, "Invalid yield rate");
         require(_minDuration > 0 && _maxDuration > _minDuration, "Invalid durations");
 
@@ -76,6 +75,10 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
         allowedTokens[NATIVE_ETH] = true;
         allowedTokenList.push(NATIVE_ETH);
         emit TokenAllowedStatusChanged(NATIVE_ETH, true);
+    }
+
+    function setBorrowProtocolAddress(address _borrowProtocolAddress) external onlyOwner {
+        borrowProtocolAddress = _borrowProtocolAddress;
     }
 
     function updateYieldParameters(uint256 _rate, uint256 _min, uint256 _max) external onlyOwner {
@@ -244,6 +247,10 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
             activeStakers.pop();
             totalStakers--;
         }
+    }
+
+    function setBorrowProtocol(address _borrowProtocolAddress) external onlyOwner {
+        borrowProtocolAddress = _borrowProtocolAddress;
     }
 
     function initiateEmergencyWithdrawal() external onlyOwner {

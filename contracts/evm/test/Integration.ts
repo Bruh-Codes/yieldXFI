@@ -24,33 +24,33 @@ describe("Integration Test: YieldPool and BorrowProtocol", function () {
   async function deployContractsFixture() {
     [owner, depositor, borrower] = await hre.ethers.getSigners();
 
-    const borrowProtocolFactory = await hre.ethers.getContractFactory(
-      "BorrowProtocol"
-    );
     const mockAavePoolFactory = await hre.ethers.getContractFactory("MockAavePool");
     mockAavePool = await mockAavePoolFactory.deploy();
 
     const XFIMock = await hre.ethers.getContractFactory("XFIMock");
     const xfiMock = await XFIMock.deploy();
 
+    // Deploy YieldPool first
+    const yieldPoolFactory = await hre.ethers.getContractFactory("YieldPool");
+    yieldPool = await yieldPoolFactory.deploy(
+      yieldRate,
+      minDuration,
+      maxDuration
+    );
+
+    // Deploy BorrowProtocol, passing the actual YieldPool address
+    const borrowProtocolFactory = await hre.ethers.getContractFactory(
+      "BorrowProtocol"
+    );
     borrowProtocol = await borrowProtocolFactory.deploy(
-      hre.ethers.ZeroAddress, // Placeholder, will be set later
+      await yieldPool.getAddress(),
       owner.address,
       mockAavePool.getAddress(),
       xfiMock.getAddress()
     );
 
-    // Deploy YieldPool
-    const yieldPoolFactory = await hre.ethers.getContractFactory("YieldPool");
-    yieldPool = await yieldPoolFactory.deploy(
-      yieldRate,
-      minDuration,
-      maxDuration,
-      borrowProtocol.getAddress()
-    );
-
-    // Set the correct yield pool address in BorrowProtocol
-    await borrowProtocol.setYieldPool(yieldPool.getAddress());
+    // Set the correct borrow protocol address in YieldPool
+    await yieldPool.setBorrowProtocolAddress(await borrowProtocol.getAddress());
 
     // Deploy MockERC20
     const mockERC20Factory = await hre.ethers.getContractFactory("ERC20Mock");

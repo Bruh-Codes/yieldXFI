@@ -1,34 +1,59 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-// import yieldTokenConfig from "@/artifacts/contracts/YieldToken.sol/YieldToken.json";
-// import yieldPoolConfig from "@/artifacts/contracts/YieldPool.sol/YieldPool.json";
+import yieldTokenConfig from "@/contract-deployments/abis/YieldTokenModule#YieldToken.json";
+import yieldPoolConfig from "@/contract-deployments/abis/YieldPoolModule#YieldPool.json";
+import borrowConfig from "@/contract-deployments/abis/BorrowProtocolModule#BorrowProtocol.json";
+// import borrowConfig from "@/contract-deployments/abis/BorrowProtocol.json";
+import addresses from "@/contract-deployments/deployments.json";
 import { Abi } from "viem";
+
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
 }
 
-const yieldPoolConfig = { abi: "" as unknown as Abi };
-const yieldTokenConfig = { abi: "" as unknown as Abi };
+export const YieldTokenAddress = addresses[
+	"YieldTokenModule#YieldToken"
+] as `0x${string}`;
+export const YieldPoolAddress = addresses[
+	"YieldPoolModule#YieldPool"
+] as `0x${string}`;
+export const BorrowAddress = addresses[
+	"BorrowProtocolModule#BorrowProtocol"
+] as `0x${string}`;
 
-export const YieldTokenAddress =
-	"0x235a61846Cc52410948E37B1d426Cb82F41f940e" as unknown as undefined; //to resolve ts error on page/tsx
-export const YieldPoolAddress =
-	"0xCbe4C05520F526FEFd0e0FC133bfA24a033546B8" as unknown as undefined;
-
-export const getYieldPoolConfig = (functionName: string, args?: any[]) => {
-	return {
-		abi: (yieldPoolConfig?.abi as Abi) ?? "",
+export const getYieldPoolConfig = (
+	functionName: string,
+	args?: any[],
+	value?: bigint
+) => {
+	const base = {
+		abi: yieldPoolConfig.abi as Abi,
 		address: YieldPoolAddress!,
-		functionName: functionName,
+		functionName,
 		...(args && { args }),
 	};
+
+	return value ? { ...base, value } : base;
 };
 export const getYieldTokenConfig = (functionName: string, args?: any[]) => {
 	return {
-		abi: (yieldTokenConfig?.abi as Abi) ?? "",
+		abi: yieldTokenConfig.abi as Abi,
 		address: YieldTokenAddress,
 		functionName: functionName,
 		...(args && { args }),
 	};
+};
+export const getBorrowConfig = (
+	functionName: string,
+	args?: any[],
+	value?: bigint
+) => {
+	const base = {
+		abi: borrowConfig.abi as Abi,
+		address: BorrowAddress,
+		functionName: functionName,
+		...(args && { args }),
+	};
+	return value ? { ...base, value } : base;
 };

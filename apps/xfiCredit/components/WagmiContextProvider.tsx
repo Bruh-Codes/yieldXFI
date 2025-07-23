@@ -1,9 +1,8 @@
 "use client";
 
-import { wagmiAdapter, projectId, eduTestnet } from "@/lib/wagmi";
+import { wagmiAdapter, projectId, crossfi } from "@/lib/wagmi";
 import { createAppKit } from "@reown/appkit/react";
 import { cookieToInitialState, WagmiProvider, type Config } from "wagmi";
-// import { arbitrum } from "@reown/appkit/networks";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
@@ -17,24 +16,27 @@ const clientFromReactQuery = new QueryClient({
 		queries: {
 			refetchOnWindowFocus: false,
 			refetchOnMount: false,
+			refetchOnReconnect: true,
 		},
 	},
 });
 
 const metadata = {
-	name: "xfiCredit",
+	name: "yieldXFI",
 	icons: ["https://avatars.githubusercontent.com/u/179229932"],
-	url:"",
-	description:""
-
+	url: "",
+	description: "",
 };
 
 // the modal
 createAppKit({
 	adapters: [wagmiAdapter],
 	projectId,
-	networks: [eduTestnet],
-	defaultNetwork: eduTestnet,
+	networks: [
+		crossfi,
+		//  localhost
+	],
+	defaultNetwork: crossfi,
 	metadata,
 	features: {
 		analytics: true, // Optional - defaults to Cloud configuration

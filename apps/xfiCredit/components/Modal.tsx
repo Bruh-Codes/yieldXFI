@@ -20,13 +20,7 @@ const Modal = ({
 				<DialogHeader>
 					<DialogTitle>Insufficient Tokens</DialogTitle>
 					<DialogDescription className="space-y-4 pt-3">
-						<p>
-							You need (FYT) tokens for interaction.{" "}
-							<span className="text-primary">
-								Click on the Get Test Tokens button{" "}
-							</span>{" "}
-							at the top right to Mint free test tokens{" "}
-						</p>
+						<p>You need (XFI) tokens for interaction.</p>
 					</DialogDescription>
 				</DialogHeader>
 			</DialogContent>

@@ -39,7 +39,7 @@ const WithdrawModal = ({
 					owner={position?.positionAddress}
 					transaction_hash={position?.transactionHash}
 					amount={position?.amount}
-					expectedYield={position?.expectedYield}
+					currentYield={position?.currentYield}
 					position_id={positionId}
 					setShowWithDrawModal={setShowWithDrawModal}
 				/>
@@ -50,7 +50,7 @@ const WithdrawModal = ({
 					transaction_hash={position?.transactionHash}
 					amount={position?.amount}
 					setShowWithDrawModal={setShowWithDrawModal}
-					expectedYield={position?.expectedYield}
+					currentYield={position?.currentYield}
 				/>
 			)}
 		</Dialog>

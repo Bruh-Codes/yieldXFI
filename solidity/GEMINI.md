@@ -1,0 +1,6 @@
+## Gemini Added Memories
+- The user and I are working on the xfiCredit project. We have analyzed the EVM smart contracts (BorrowProtocol, YieldPool) and are now preparing to integrate the frontend, which the user is moving to the project root directory.
+- The user and I are debugging a 'ContractFunctionExecutionError' related to the 'depositNative' function in the YieldPool contract. The user is now switching to the frontend code to provide more context.
+- The user and I are debugging a 'ContractFunctionRevertedError: The contract function "mint" reverted.Error: OwnableUnauthorizedAccount(address account)' related to the YieldToken contract. The user will continue debugging from the smart contract directory.
+- The YieldToken contract's mint function is restricted to the owner. The YieldPool contract needs to be the owner of the YieldToken contract to mint new tokens. The deployment script has been updated to transfer ownership of YieldToken to YieldPool after deployment.
+- The deployment of YieldPoolModule and YieldTokenModule was successful after resolving the `OwnableUnauthorizedAccount` error. The solution involved explicitly setting the `from` address for the `transferOwnership` call to `m.getAccount(0)` in `YieldPoolModule.ts` to ensure the transaction was sent from the correct deployer account.

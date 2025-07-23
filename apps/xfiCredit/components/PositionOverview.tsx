@@ -1,5 +1,5 @@
 "use state";
-import React, { useState } from "react";
+import React, { Dispatch, SetStateAction, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,7 +18,7 @@ export interface ActivePosition {
 	lockDuration: number;
 	startTime: number;
 	timeLeft: number;
-	expectedYield: number;
+	currentYield: number;
 	status: "Active" | "Locked";
 	transactionHash?: string;
 	created_at?: string;
@@ -27,13 +27,21 @@ export interface ActivePosition {
 const PositionOverview = ({
 	positions,
 	setShowWithDrawModal,
+	setModalType,
 }: {
 	positions: [] | ActivePosition[];
 	setShowWithDrawModal: React.Dispatch<React.SetStateAction<boolean>>;
+	setModalType: Dispatch<SetStateAction<"withdraw" | "unstake" | null>>;
 }) => {
 	const { isConnected } = useAppKitAccount();
 	const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
 	const { userPositions } = usePositions();
+
+	useEffect(() => {
+		if (currentPositionIndex >= userPositions.length && userPositions.length > 0) {
+			setCurrentPositionIndex(0);
+		}
+	}, [userPositions, currentPositionIndex]);
 
 	// Update userPosition to use currentPositionIndex
 	const userPosition = userPositions[currentPositionIndex];
@@ -70,15 +78,15 @@ const PositionOverview = ({
 									<p className="text-sm text-slate-400">Deposited</p>
 									<p className="text-md font-bold">
 										{userPosition?.amount
-											? `${userPosition.amount} FYT`
+											? `${userPosition.amount} XFI`
 											: "N/A"}
 									</p>
 								</div>
 								<div className="bg-slate-100 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500">
 									<p className="text-sm text-slate-400">Current Yield</p>
 									<p className="text-md font-bold">
-										{userPosition?.expectedYield
-											? `${Number(userPosition.expectedYield).toFixed(8)} FYT`
+										{userPosition?.currentYield
+											? `${Number(userPosition.currentYield).toFixed(8)} XFI`
 											: "N/A"}
 									</p>
 								</div>
@@ -116,7 +124,7 @@ const PositionOverview = ({
 										onClick={handlePrevPosition}
 										type="button"
 										className={cn(
-											"flex px-3 text-sm disabled:bg-gray-400  bg-lime-700 enabled:hover:bg-lime-600 enabled:active:bg-lime-600/90 text-white border-none w-fit rounded-md"
+											"flex px-3 text-sm border-none w-fit rounded-md"
 										)}
 									>
 										Previous Position
@@ -129,7 +137,7 @@ const PositionOverview = ({
 										onClick={handleNextPosition}
 										type="button"
 										className={cn(
-											"flex px-3 text-sm disabled:bg-gray-400  bg-lime-700 enabled:hover:bg-lime-600 enabled:active:bg-lime-600/90 text-white border-none w-fit rounded-md"
+											"flex px-3 text-sm border-none w-fit rounded-md"
 										)}
 									>
 										Next Position
@@ -139,22 +147,21 @@ const PositionOverview = ({
 
 							<Alert className="bg-secondary/20 border border-secondary/20">
 								<AlertDescription>
-									{!isConnected ? (
-										"Connect your wallet to see this info"
-									) : userPositions.length > 0 ? (
-										<>
-											<CountDownTimer
-												transaction_hash={userPosition?.transactionHash}
-												positionId={userPosition.id}
-												setShowWithDrawModal={setShowWithDrawModal}
-												isConnected={isConnected}
-												lockDuration={Number(userPosition?.lockDuration)}
-												startTime={Number(userPosition?.startTime)}
-											/>
-										</>
-									) : (
-										"You have no active positions. Stake to see this info"
-									)}
+									{!isConnected
+										? "Connect your wallet to see this info"
+										: userPositions.length > 0
+										? userPositions && (
+												<CountDownTimer
+													setModalType={setModalType}
+													transaction_hash={userPosition?.transactionHash}
+													positionId={userPosition?.id}
+													setShowWithDrawModal={setShowWithDrawModal}
+													isConnected={isConnected}
+													lockDuration={Number(userPosition?.lockDuration)}
+													startTime={Number(userPosition?.startTime)}
+												/>
+										  )
+										: "You have no active positions. Stake to see this info"}
 								</AlertDescription>
 							</Alert>
 						</div>

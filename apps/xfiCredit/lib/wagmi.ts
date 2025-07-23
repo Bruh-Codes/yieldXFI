@@ -7,32 +7,55 @@ if (!projectId) {
 	throw new Error("PROJECT_ID environment variable is not defined");
 }
 
-export const eduTestnet = defineChain({
-	id: 656476,
-	name: "EDU Chain Testnet",
+export const crossfi = defineChain({
+	id: 4157,
+	name: "crossfi testnet",
 	chainNamespace: "eip155",
-	caipNetworkId: "eip155:656476",
+	caipNetworkId: "eip155:4157",
 	nativeCurrency: {
-		name: "EDU Chain Testnet",
-		symbol: "EDU",
+		name: "crossfi testnet",
+		symbol: "xfi",
 		decimals: 18,
 	},
 
 	testnet: true,
 	rpcUrls: {
 		default: {
-			http: ["https://rpc.open-campus-codex.gelato.digital"],
+			http: [
+				"https://crossfi-testnet.blastapi.io/e3605696-6684-43b0-a1b1-9fbf9b5f2517",
+			],
 		},
 	},
 	blockExplorers: {
 		default: {
-			name: "EDU Explorer",
-			url: "https://edu-chain-testnet.blockscout.com",
+			name: "xfiScan",
+			url: "https://test.xfiscan.com/dashboard",
+		},
+	},
+});
+export const localhost = defineChain({
+	id: 31337,
+	name: "Localhost",
+	chainNamespace: "eip155",
+	caipNetworkId: "eip155:31337",
+	nativeCurrency: {
+		name: "localhost",
+		symbol: "LH",
+		decimals: 18,
+	},
+
+	testnet: true,
+	rpcUrls: {
+		default: {
+			http: [" http://127.0.0.1:8545"],
 		},
 	},
 });
 
-export const networks = [eduTestnet];
+export const networks = [
+	crossfi,
+	//  localhost
+];
 
 //Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({

@@ -4,7 +4,7 @@
 	"scripts": {
 		"test": "pnpm hardhat test",
 		"coverage": "pnpm hardhat coverage",
-		"deploy": "npx hardhat ignition deploy ./ignition/modules/YieldPool.ts"
+		"deploy": "npx hardhat ignition deploy ./ignition/modules/YieldPoolModule.ts --network crossfi"
 	},
 	"author": "Kamasah Dickson",
 	"license": "ISC",

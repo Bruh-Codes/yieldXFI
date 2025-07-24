@@ -1,12 +1,13 @@
-# xfiCredit
+# yieldXFI
 
-## Decentralized Borrowing and Lending Protocol for CrossFi Hackathon
+yieldXFI is a decentralized finance (DeFi) protocol that allows users to stake assets, earn yield, and borrow against their collateral. This monorepo contains both the frontend application and the Solidity smart contracts.
 
-xfiCredit is a decentralized borrowing and lending protocol built for the CrossFi Hackathon. It aims to provide a secure and efficient platform for users to lend and borrow digital assets, delegate tokens to generate yields, and swap tokens across multiple EVM-compatible chains, including Arbitrum, Base, Binance Smart Chain (BSC), Fantom, and zkSync.
+## Project Structure
+
+- `apps/yieldXFI`: The Next.js frontend application.
+- `solidity`: The Hardhat project containing the Solidity smart contracts.
 
 ## Getting Started
-
-To get started with this project, follow these steps:
 
 ### Prerequisites
 
@@ -15,42 +16,65 @@ To get started with this project, follow these steps:
 
 ### Installation
 
-1. Clone the repository:
+1.  **Clone the repository:**
 
-   ```bash
-   git clone https://github.com/Bruh-Codes/xfiCredit.git
-   ```
+    ```bash
+    git clone https://github.com/your-username/yieldXFI.git
+    cd yieldXFI
+    ```
 
-2. Install dependencies:
+2.  **Install dependencies for the entire project:**
+    ```bash
+    yarn install
+    ```
 
-   ```bash
-   yarn install
-   ```
+## Frontend (`apps/yieldXFI`)
 
-### Running the Frontend
-
-To start the frontend development server, run:
-
-```bash
-yarn workspace frontend dev
-```
-
-### Compiling the EVM Contracts
-
-To compile the EVM contracts, run:
+To run the frontend development server:
 
 ```bash
-yarn workspace contracts-evm compile
+cd apps/yieldXFI
+yarn dev
 ```
 
-### Running the EVM Contract Tests
+Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
-To run the EVM contract tests, run:
+## Smart Contracts (`solidity`)
 
-```bash
-<<<<<<< HEAD
-yarn workspace contracts-evm test
-=======
-yarn workspace hardhat-project test
->>>>>>> b1419f4f406acb828a0d22a1302113d2214c82dc
-```
+### Setup
+
+1.  Navigate to the `solidity` directory:
+
+    ```bash
+    cd solidity
+    ```
+
+2.  Create a `.env` file and add your private key:
+    ```
+    ACCOUNT_PRIVATE_KEY=your_private_key
+    ```
+
+### Commands
+
+- **Compile:**
+  ```bash
+  npx hardhat compile
+  ```
+- **Test:**
+  ```bash
+  npx hardhat test
+  ```
+- **Deploy:**
+  ```bash
+  npx hardhat ignition deploy ./ignition/modules/YieldPoolModule.ts --network crossfi
+  ```
+
+## Tech Stack
+
+- **Frontend**: Next.js, React, TypeScript, TailwindCSS
+- **Smart Contracts**: Solidity, Hardhat, Ethers.js
+- **Blockchain**: CrossFi Testnet
+
+## License
+
+This project is licensed under the MIT License.

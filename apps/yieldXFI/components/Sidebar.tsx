@@ -33,7 +33,7 @@ const AppSidebar = () => {
 					<SidebarMenuItem className="flex items-center justify-between">
 						<div className="flex items-center gap-2">
 							<h1 className="text-xl ml-3 font-bold text-foreground">
-								yieldXFI
+								YieldXFI
 							</h1>
 						</div>
 					</SidebarMenuItem>
